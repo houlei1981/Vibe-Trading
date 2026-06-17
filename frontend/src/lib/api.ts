@@ -649,6 +649,7 @@ export interface AlphaSummary {
   decay_horizon?: number | null;
   min_warmup_bars?: number | null;
   requires_sector?: boolean;
+  notes_key?: string | null;
 }
 
 export interface AlphaListResponse {
@@ -664,6 +665,7 @@ export interface AlphaDetail {
   zoo: string;
   module_path?: string;
   meta: Record<string, unknown>;
+  notes_key?: string | null;
 }
 
 export interface AlphaDetailResponse {

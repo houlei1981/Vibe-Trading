@@ -78,7 +78,11 @@ export const useAgentStore = create<AgentState>((set) => ({
   loadHistory: (msgs) => set({ messages: msgs }),
 
   addToolCall: (entry) =>
-    set((s) => ({ toolCalls: [...s.toolCalls, entry] })),
+    set((s) => {
+      const next = s.toolCalls.filter((tc) => tc.tool !== entry.tool);
+      next.push(entry);
+      return { toolCalls: next };
+    }),
   updateToolCall: (id, update) =>
     set((s) => ({
       toolCalls: s.toolCalls.map((tc) => tc.id === id ? { ...tc, ...update } : tc),

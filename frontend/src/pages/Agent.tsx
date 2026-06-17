@@ -17,6 +17,7 @@ import { ToolProgressIndicator } from "@/components/chat/ToolProgressIndicator";
 import { MandateProposalCard } from "@/components/chat/MandateProposalCard";
 import { RunnerStatus } from "@/components/chat/RunnerStatus";
 import { SwarmStatusCard } from "@/components/chat/SwarmStatusCard";
+import i18n from "@/i18n";
 import {
   applySwarmEvent,
   buildSwarmStatusFromStarted,
@@ -118,7 +119,7 @@ function LiveActionChip({ action }: { action: LiveAction }) {
       <div className="flex-1 min-w-0">
         <div className={["inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs", tone].join(" ")}>
           <Icon className="h-3 w-3 shrink-0" />
-          <span className="shrink-0 font-medium uppercase tracking-wide text-[10px]">RUNTIME</span>
+          <span className="shrink-0 font-medium uppercase tracking-wide text-[10px]">{i18n.t("agent.runtimeBadge")}</span>
           <span className="shrink-0 font-medium">{liveActionLabel(action)}</span>
           {action.intent_normalized && (
             <span className="truncate text-foreground/80">· {action.intent_normalized}</span>
@@ -154,7 +155,7 @@ function getGoalProgress(snapshot: GoalSnapshot | null): {
     met,
     total,
     label: total > 0 ? `${met}/${total}` : "",
-    metLabel: total > 0 ? `${met}/${total} met` : "",
+    metLabel: total > 0 ? `${met}/${total}` : "",
     evidenceTotal,
   };
 }
@@ -185,7 +186,19 @@ function latestGoalEvidence(snapshot: GoalSnapshot) {
     .slice(0, 2);
 }
 
+function isChineseLocale(): boolean {
+  return i18n.language.startsWith("zh");
+}
+
 function goalKickoffPrompt(objective: string): string {
+  if (isChineseLocale()) {
+    return [
+      "现在开始执行这个研究目标。",
+      "只做研究分析，在需要证据时使用可用工具，把具体证据写入目标记录，并持续推进，直到目标完成、被阻塞、需要用户输入，或达到预算上限。",
+      "",
+      `目标：${objective}`,
+    ].join("\n");
+  }
   return [
     "Start working on this research goal now.",
     "Keep it research-only, use available tools when evidence is needed, add concrete evidence to the goal ledger, and keep going until the goal is complete, blocked, waiting for user input, or budget-limited.",
@@ -199,6 +212,15 @@ function goalContinuePrompt(snapshot: GoalSnapshot): string {
     .filter((item) => item.required && !criterionCovered(snapshot, item))
     .map((item) => `- ${item.text}`)
     .join("\n");
+  if (isChineseLocale()) {
+    return [
+      "继续当前研究目标。",
+      "按需使用真实可用工具，把证据写入目标记录，并且只有在目标完成、被阻塞、需要用户输入，或达到预算上限时才停止。",
+      "",
+      `目标：${snapshot.goal.objective}`,
+      openCriteria ? `未完成标准：\n${openCriteria}` : "看起来所有标准都已覆盖；请审查记录，并在完成条件成立时更新目标状态。",
+    ].join("\n");
+  }
   return [
     "Continue the active research goal.",
     "Use real available tools as needed, add evidence to the goal ledger, and only stop when the goal is complete, blocked, waiting for user input, or budget-limited.",
@@ -979,7 +1001,7 @@ export function Agent() {
         goal_id: goalSnapshot.goal.goal_id,
         expected_goal_id: goalSnapshot.goal.goal_id,
         status: "cancelled",
-        recap: "Cancelled from Web UI.",
+        recap: t("agent.cancelledFromUI"),
       });
       setGoalSnapshot(null);
       setGoalDetailsOpen(false);
@@ -1130,7 +1152,12 @@ export function Agent() {
   const timelineRows = useMemo<TimelineRow[]>(() => {
     const rows: TimelineRow[] = groups.map((g, i) => {
       const ts = g.kind === "timeline" ? g.msgs[0].timestamp : g.msg.timestamp;
-      const key = g.kind === "timeline" ? `g_${g.msgs[0].id || g.msgs[0].timestamp}` : `g_${g.msg.id || g.msg.timestamp}_${i}`;
+      const baseId = g.kind === "timeline"
+        ? `${g.msgs.map((m) => m.id).join("_")}`
+        : `${g.msg.id}`;
+      const key = g.kind === "timeline"
+        ? `tl_${baseId || ts}_${i}`
+        : `sg_${baseId || ts}_${i}`;
       return { sort: ts, render: "group", group: g, key };
     });
     for (const item of liveItems) {
@@ -1163,9 +1190,9 @@ export function Agent() {
       <div ref={listRef} className="flex-1 overflow-auto p-6 scroll-smooth relative">
         <div className="max-w-3xl mx-auto space-y-4">
           {sessionLoading && (
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4" key="session-loading">
               {[1, 2, 3].map(i => (
-                <div key={i} className="flex gap-3 animate-pulse">
+                <div key={`loading-${i}`} className="flex gap-3 animate-pulse">
                   <div className="h-8 w-8 rounded-full bg-muted shrink-0" />
                   <div className="flex-1 space-y-2">
                     <div className="h-4 bg-muted rounded w-3/4" />
@@ -1202,16 +1229,16 @@ export function Agent() {
                 />
               );
             }
-            const msgIdx = messages.indexOf(g.msg);
+            const msgId = g.msg.id;
             if (g.msg.type === "swarm_status" && g.msg.swarmStatus) {
               return (
-                <div key={row.key} data-msg-idx={msgIdx}>
+                <div key={row.key} data-msg-id={msgId}>
                   <SwarmStatusCard status={g.msg.swarmStatus} />
                 </div>
               );
             }
             return (
-              <div key={row.key} data-msg-idx={msgIdx}>
+              <div key={row.key} data-msg-id={msgId}>
                 <MessageBubble msg={g.msg} onRetry={g.msg.type === "error" ? handleRetry : undefined} />
               </div>
             );
@@ -1294,7 +1321,7 @@ export function Agent() {
             <div className="flex items-center gap-1">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-medium">
                 <Target className="h-3 w-3" />
-                New Research Goal
+                {t("agent.newResearchGoal")}
                 <button type="button" onClick={() => setGoalComposerActive(false)} className="hover:text-destructive transition-colors">
                   <X className="h-3 w-3" />
                 </button>
@@ -1308,7 +1335,7 @@ export function Agent() {
                 onClick={() => setGoalDetailsOpen((open) => !open)}
                 className="inline-flex max-w-full items-center gap-1.5 justify-self-start rounded-lg bg-primary/10 px-2.5 py-1 text-left text-xs font-medium text-primary transition-colors hover:bg-primary/15"
                 title={goalSnapshot.goal.objective}
-                aria-label="Active research goal"
+                aria-label={t("agent.activeResearchGoal")}
                 aria-expanded={goalDetailsOpen}
               >
                 <Target className="h-3 w-3 shrink-0" />
@@ -1322,8 +1349,8 @@ export function Agent() {
                   </span>
                 )}
                 {goalProgress.evidenceTotal > 0 && (
-                  <span className="shrink-0 rounded bg-background px-1 font-mono text-[10px] text-primary" title="Evidence collected toward this research goal">
-                    {goalProgress.evidenceTotal} evidence
+                  <span className="shrink-0 rounded bg-background px-1 font-mono text-[10px] text-primary" title={t("agent.evidenceCollected")}>
+                    {t("agent.evidenceCount", { count: goalProgress.evidenceTotal })}
                   </span>
                 )}
                 <ChevronDown
@@ -1351,7 +1378,7 @@ export function Agent() {
                           className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
                         >
                           <X className="h-3 w-3" />
-                          Cancel
+                          {t("agent.cancel")}
                         </button>
                         <button
                           type="button"
@@ -1360,7 +1387,7 @@ export function Agent() {
                           className="inline-flex items-center gap-1 rounded-lg bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground transition-opacity disabled:opacity-40"
                         >
                           <Check className="h-3 w-3" />
-                          Save
+                          {t("agent.save")}
                         </button>
                       </div>
                     </div>
@@ -1372,7 +1399,7 @@ export function Agent() {
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-lg border bg-muted/20 p-2.5">
                       <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Criteria
+                        {t("agent.criteria")}
                       </div>
                       <div className="mt-1 font-mono text-base font-semibold text-foreground">
                         {goalProgress.label || "0/0"}
@@ -1380,7 +1407,7 @@ export function Agent() {
                     </div>
                     <div className="rounded-lg border bg-muted/20 p-2.5">
                       <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Evidence
+                        {t("agent.evidence")}
                       </div>
                       <div className="mt-1 font-mono text-base font-semibold text-foreground">
                         {goalProgress.evidenceTotal}
@@ -1408,7 +1435,7 @@ export function Agent() {
                             </span>
                           </span>
                           <span className="rounded-full border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                            {evidenceCount} ev
+                            {t("agent.evidenceShort", { count: evidenceCount })}
                           </span>
                         </div>
                       );
@@ -1417,12 +1444,12 @@ export function Agent() {
                   {goalSnapshot.evidence.length > 0 && (
                     <div className="grid gap-1.5 border-t pt-2">
                       <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Recent Evidence
+                        {t("agent.recentEvidence")}
                       </div>
                       {latestGoalEvidence(goalSnapshot).map((item) => (
                         <div key={item.evidence_id} className="rounded-lg bg-muted/20 px-2 py-1.5">
                           <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-                            <span className="truncate">{item.source_provider || "evidence"}</span>
+                            <span className="truncate">{item.source_provider || t("agent.evidenceSource")}</span>
                             <span>{statusLabel(item.verification_status)}</span>
                           </div>
                           <div className="line-clamp-2 text-[11px] leading-relaxed text-foreground">
@@ -1440,7 +1467,7 @@ export function Agent() {
                       className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                     >
                       <Play className="h-3 w-3" />
-                      Continue
+                      {t("agent.continue")}
                     </button>
                     <button
                       type="button"
@@ -1449,7 +1476,7 @@ export function Agent() {
                       className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                     >
                       <Pencil className="h-3 w-3" />
-                      Edit
+                      {t("agent.edit")}
                     </button>
                     <button
                       type="button"
@@ -1457,7 +1484,7 @@ export function Agent() {
                       className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
                     >
                       <X className="h-3 w-3" />
-                      Cancel Goal
+                      {t("agent.cancelGoal")}
                     </button>
                   </div>
                 </div>
@@ -1630,7 +1657,7 @@ export function Agent() {
               }}
               placeholder={
                 goalComposerActive
-                  ? "Describe the research goal to attach to this session"
+                  ? t("agent.describeGoal")
                   : "e.g. Create a dual MA crossover strategy for 000001.SZ, backtest 2024"
               }
               className="flex-1 px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-shadow resize-none max-h-32 overflow-y-auto"

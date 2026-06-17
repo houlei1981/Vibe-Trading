@@ -112,6 +112,61 @@ _VALID_UNIVERSES = {"equity_us", "equity_cn", "equity_hk", "crypto", "futures"}
 _VALID_SORTS = {"ir", "ic_mean", "ic_positive_ratio", "ic_count"}
 _BENCH_UNIVERSES = {"csi300", "sp500", "btc-usdt"}
 
+_NOTE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"^Carhart \(1997\) UMD momentum factor\.", re.I), "academic.carhart_momentum"),
+    (re.compile(r"^\[PRICE PROXY\] for the Fama-French \(2015\) CMA", re.I), "academic.cma_price_proxy"),
+    (re.compile(r"^\[PRICE PROXY\] for the Fama-French \(1993\) HML", re.I), "academic.hml_price_proxy"),
+    (re.compile(r"^\[PRICE PROXY\] for the Sharpe \(1964\) / Fama-French market factor", re.I), "academic.mkt_rf_price_proxy"),
+    (re.compile(r"^\[PRICE PROXY\] for the Fama-French \(2015\) RMW", re.I), "academic.rmw_price_proxy"),
+    (re.compile(r"^\[PRICE PROXY\] for the Fama-French \(1993\) SMB", re.I), "academic.smb_price_proxy"),
+    (re.compile(r"^Very long lookback \(>= ~100 bars\); produces NaN warmup", re.I), "warning.long_lookback"),
+    (re.compile(r"^Industry neutralization implemented via per-row sector group demean", re.I), "warning.industry_neutralization"),
+    (re.compile(r"^Benchmark falls back to cross-sectional mean of close\.", re.I), "warning.benchmark_fallback"),
+    (re.compile(r"^Triple SMA of log close\.", re.I), "gtja.triple_sma_log_close"),
+    (re.compile(r"^Average True Range \(12\)\.", re.I), "gtja.atr_12"),
+    (re.compile(r"^RSI-style normalised\.", re.I), "gtja.rsi_normalized"),
+    (re.compile(r"^Wilder's ADX-style indicator; mean over last 6 bars\.", re.I), "gtja.adx_style_6"),
+    (re.compile(r"^Original returns boolean; we cast to float and multiply by -1\.", re.I), "gtja.boolean_to_float_negated"),
+    (re.compile(r"^Inequality cast to float via \.astype\('float64'\)\.", re.I), "gtja.inequality_cast_float"),
+    (re.compile(r"^SMA\(x,n,m\) -> x\.ewm\(alpha=m/n, adjust=False\)\.mean\(\)\.", re.I), "gtja.sma_ewm_generic"),
+    (re.compile(r"^SMA -> ewm\(alpha=2/10\)\.", re.I), "gtja.sma_ewm_2_10"),
+    (re.compile(r"^LOWDAY -> ts_argmin \(0-based\); \(20 - argmin\)/20 \* 100\.", re.I), "gtja.lowday_argmin"),
+    (re.compile(r"^x\^y interpreted as x \*\* y after rank; both terms in \(0,1\]\.", re.I), "gtja.power_ranked_bounded"),
+    (re.compile(r"^x\^y -> np\.power after rank\.", re.I), "gtja.power_after_rank"),
+    (re.compile(r"^Rolling OLS slope vs\. linear index; cov\(c,t,20\)/var\(t,20\)\.", re.I), "gtja.rolling_ols_slope_20"),
+    (re.compile(r"^ret = close/delay\(close,1\) - 1\.", re.I), "gtja.simple_return"),
+    (re.compile(r"^Transcribed from the standard 137 implementation; piecewise denominator\.", re.I), "gtja.standard_137_piecewise"),
+    (re.compile(r"^SUMAC = expanding cumulative sum approximated by rolling 48-day cumulative sum\.", re.I), "gtja.sumac_roll48"),
+    (re.compile(r"^Skewness-style; constants from report\.", re.I), "gtja.skewness_style"),
+    (re.compile(r"^ATR\(6\)\.", re.I), "gtja.atr_6"),
+    (re.compile(r"^Benchmark falls back to cross-sectional mean of close\.", re.I), "gtja.benchmark_fallback_mean_close"),
+    (re.compile(r"^alpha172 averaged with its 6-day lag\.", re.I), "gtja.alpha172_lag6"),
+    (re.compile(r"^Standardised return deviation; SMA\(\.,61,2\)=ewm\(alpha=2/61\)\.", re.I), "gtja.standardised_return_deviation_61"),
+    (re.compile(r"^DELAT in report typo = DELTA\.", re.I), "gtja.delat_typo_delta"),
+    (re.compile(r"^MAX elementwise -> np\.maximum\.", re.I), "formula.max_elementwise"),
+    (re.compile(r"^MIN\(a,b\) elementwise -> np\.minimum\.", re.I), "formula.min_elementwise"),
+    (re.compile(r"^PROD\(\.,1\) is identity; we use it directly\.", re.I), "formula.prod_identity"),
+    (re.compile(r"^x\^y -> np\.power after rank\.", re.I), "formula.power_after_rank"),
+    (re.compile(r"^x\^y interpreted as x \*\* y after rank; both terms in \(0,1\]\.", re.I), "formula.power_ranked_bounded"),
+    (re.compile(r"^ret = close/delay\(close,1\) - 1\.", re.I), "formula.simple_return"),
+    (re.compile(r"^Rolling OLS slope vs\. linear index; cov\(c,t,20\)/var\(t,20\)\.", re.I), "formula.rolling_ols_slope"),
+    (re.compile(r"^Rolling OLS slope of MA12 against linear index, window 12\.", re.I), "formula.rolling_ols_slope_ma12"),
+    (re.compile(r"^Complex log of ratio of conditional squared deviations\.", re.I), "formula.conditional_variance_log_ratio"),
+    (re.compile(r"^Standardised return deviation; SMA\(\.,61,2\)=ewm\(alpha=2/61\)\.", re.I), "formula.standardised_return_deviation"),
+    (re.compile(r"^SUMIF -> \(x\*cond\)\.rolling\(n\)\.sum\(\); COUNT -> cond\.rolling\(n\)\.sum\(\)\.", re.I), "formula.sumif_count"),
+    (re.compile(r"^Recursive SELF unrolled to cumulative product of \(1 \+ up_return\) since series start\.", re.I), "formula.recursive_self"),
+    (re.compile(r"^Downside beta vs\. benchmark; uses fallback cross-sectional mean if benchmark_close missing\.", re.I), "formula.downside_beta"),
+]
+
+
+def _note_key(notes: str | None) -> str | None:
+    if not notes:
+        return None
+    for pattern, key in _NOTE_PATTERNS:
+        if pattern.search(notes):
+            return key
+    return None
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -422,6 +477,7 @@ def register_alpha_routes(
             except KeyError:
                 continue
             meta = a.meta or {}
+            notes = meta.get("notes")
             alphas.append(
                 {
                     "id": a.id,
@@ -432,6 +488,7 @@ def register_alpha_routes(
                     "decay_horizon": meta.get("decay_horizon"),
                     "min_warmup_bars": meta.get("min_warmup_bars"),
                     "requires_sector": bool(meta.get("requires_sector", False)),
+                    "notes_key": _note_key(notes if isinstance(notes, str) else None),
                 }
             )
         return {
@@ -474,14 +531,15 @@ def register_alpha_routes(
 
         return {
             "status": "ok",
-            "alpha": {
-                "id": alpha.id,
-                "zoo": alpha.zoo,
-                "module_path": alpha.module_path,
-                "meta": alpha.meta,
-            },
-            "source_code": source_code,
-        }
+                "alpha": {
+                    "id": alpha.id,
+                    "zoo": alpha.zoo,
+                    "module_path": alpha.module_path,
+                    "meta": alpha.meta,
+                    "notes_key": _note_key((alpha.meta or {}).get("notes") if isinstance((alpha.meta or {}).get("notes"), str) else None),
+                },
+                "source_code": source_code,
+            }
 
     # -----------------------------------------------------------------------
     # POST /alpha/bench

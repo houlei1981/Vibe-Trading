@@ -24,7 +24,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({ message
       let closest = userIndices[0];
       let minDist = Infinity;
       for (const idx of userIndices) {
-        const el = container.querySelector(`[data-msg-idx="${idx}"]`);
+        const el = container.querySelector(`[data-msg-id="${messages[idx].id}"]`);
         if (!el) continue;
         const elRect = el.getBoundingClientRect();
         const dist = Math.abs(elRect.top - mid);
@@ -41,9 +41,9 @@ export const ConversationTimeline = memo(function ConversationTimeline({ message
   const scrollTo = useCallback((idx: number) => {
     const container = containerRef.current;
     if (!container) return;
-    const el = container.querySelector(`[data-msg-idx="${idx}"]`);
+    const el = container.querySelector(`[data-msg-id="${messages[idx].id}"]`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [containerRef]);
+  }, [containerRef, messages]);
 
   if (userIndices.length < 2) return null;
 
@@ -51,7 +51,7 @@ export const ConversationTimeline = memo(function ConversationTimeline({ message
     <div className="fixed right-3 top-1/2 -translate-y-1/2 h-2/3 flex flex-col justify-between items-center z-20 py-4">
       {userIndices.map((idx) => (
         <button
-          key={idx}
+          key={messages[idx].id}
           onClick={() => scrollTo(idx)}
           className={cn(
             "rounded-full transition-all shrink-0",
